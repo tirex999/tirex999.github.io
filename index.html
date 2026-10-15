@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Закрытый раздел</title>
+<script>
+try { const t = localStorage.getItem("matricy_tema"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+:root { --ground: #f3f5f4; --surface: #ffffff; --ink: #17201d; --muted: #5a6964; --line: #d4dbd8; --accent: #15675c; --accent-ink: #ffffff; --bad: #a3392a; --focus: #15675c; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ground: #0f1513; --surface: #161e1b; --ink: #e2eae7; --muted: #93a39d; --line: #2a3632; --accent: #5fc2b2; --accent-ink: #0f1513; --bad: #e0806f; --focus: #5fc2b2; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --ground: #0f1513; --surface: #161e1b; --ink: #e2eae7; --muted: #93a39d; --line: #2a3632; --accent: #5fc2b2; --accent-ink: #0f1513; --bad: #e0806f; --focus: #5fc2b2; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--ground); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.45; }
+#vhod { min-height: 100vh; display: grid; place-items: center; padding-inline: 16px; }
+form { width: min(360px, 100%); display: grid; gap: 12px; }
+h1 { margin: 0; font-size: 18px; font-weight: 600; }
+input[type=password] { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 14px; font-family: "Consolas", monospace; }
+.row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+button { font: inherit; cursor: pointer; padding: 9px 12px; border-radius: 6px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button:disabled { opacity: 0.6; cursor: default; }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+#oshibka { color: var(--bad); font-size: 13px; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div id="vhod">
+  <form id="forma" autocomplete="on">
+    <h1>Закрытый раздел</h1>
+    <input type="text" name="username" value="tirex999" autocomplete="username" hidden>
+    <input id="parol" type="password" placeholder="Пароль" autocomplete="current-password" required>
+    <label class="row"><input id="zapomnit" type="checkbox"> Запомнить на этом устройстве</label>
+    <button type="submit" id="voyti">Войти</button>
+    <div id="oshibka" role="alert"></div>
+  </form>
+</div>
+<script>
+(() => {
+  const LS = "matricy_klyuch_v1", SS = "matricy_peredacha_v1";
+  const $ = id => document.getElementById(id);
+  const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const toB64 = u => btoa(String.fromCharCode(...u));
+  const chitat = (hran, k) => { try { const s = JSON.parse(window[hran].getItem(k) || "null"); return s && s.k && s.sol ? s : null; } catch (e) { return null; } };
+
+  async function konvert() {
+    const r = await fetch("data.enc.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("данные не загрузились (" + r.status + ")");
+    return r.json();
+  }
+  async function klyuch(parol, k) {
+    const baza = await crypto.subtle.importKey("raw", new TextEncoder().encode(parol), "PBKDF2", false, ["deriveBits"]);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: b64(k.sol), iterations: k.iter, hash: "SHA-256" }, baza, 256));
+  }
+  async function otkryt(k, kl, zapomnit) {
+    const key = await crypto.subtle.importKey("raw", kl, "AES-GCM", false, ["decrypt"]);
+    const gz = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(k.iv) }, key, b64(k.shifr));
+    const d = JSON.parse(await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+    if (typeof d.stranica !== "string") throw new Error("нет страницы");
+    const z = JSON.stringify({ k: toB64(kl), sol: k.sol });
+    try { sessionStorage.setItem(SS, z); } catch (e) {}
+    if (zapomnit) { try { localStorage.setItem(LS, z); } catch (e) {} }
+    document.open(); document.write(d.stranica); document.close();
+  }
+
+  $("forma").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("oshibka").textContent = ""; $("voyti").disabled = true;
+    try {
+      const k = await konvert();
+      const kl = await klyuch($("parol").value, k);
+      try { await otkryt(k, kl, $("zapomnit").checked); return; } catch (err) { throw new Error("неверный пароль"); }
+    } catch (err) { $("oshibka").textContent = err.message; }
+    $("voyti").disabled = false;
+  });
+
+  const zabyt = () => { try { sessionStorage.removeItem(SS); localStorage.removeItem(LS); } catch (e) {} };
+  (async () => {
+    const z = chitat("sessionStorage", SS) || chitat("localStorage", LS);
+    if (!z) return;
+    try {
+      const k = await konvert();
+      if (k.sol !== z.sol) { zabyt(); $("oshibka").textContent = "пароль сменён — войдите заново"; return; }
+      await otkryt(k, b64(z.k), false);
+    } catch (e) { zabyt(); }
+  })();
+})();
+</script>
+</body>
+</html>
