@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Not found</title>
+<script>
+// /dacan, /Dacan, /dacan/temperature/ ... in any letter case -> the DACAN site at /DACAN/ (GitHub Pages paths are case-sensitive)
+var m = location.pathname.match(/^\/dacan(\/.*)?$/i);
+if (m) location.replace("/DACAN" + (m[1] || "/") + location.search + location.hash);
+</script></head>
+<body><p>Not found.</p></body></html>
